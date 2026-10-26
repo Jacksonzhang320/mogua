@@ -1,0 +1,33 @@
+# Private configuration & keys (NEVER COMMIT)
+config_local.py
+.env
+*.local.py
+
+# Python & Environment
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+env/
+venv/
+.pytest_cache/
+.mimosa/
+
+# Local data & runs
+runs/
+raw_data/
+checkpoints/
+downloads/
+test_output/
+test_papers/
+_deprecated_visualizations/
+*.tmp
+*.log
+
+# OS & IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
