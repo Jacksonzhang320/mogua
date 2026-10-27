@@ -8,8 +8,12 @@ import csv
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
+import urllib.parse
+import urllib.request
+from datetime import datetime
 from pathlib import Path
 
 # Ensure UTF-8 output on Windows terminal
@@ -19,9 +23,6 @@ if hasattr(sys.stdout, "reconfigure"):
         sys.stderr.reconfigure(encoding="utf-8")
     except Exception:
         pass
-
-
-import shutil
 
 
 def find_workspace() -> Path:
@@ -111,32 +112,40 @@ def normalize_doi(value: str | None) -> str | None:
 
 
 def resolve_doi_from_title(title_query: str) -> dict[str, str] | None:
-    """Use OpenAlex to search title and obtain DOI."""
-    import requests
-
+    """Use OpenAlex to search title and obtain DOI using standard library urllib."""
     headers = {"User-Agent": "mogua/1.0 (academic-citation-crawler; mailto:mogua@example.com)"}
-    params: dict[str, str | int] = {
+    params: dict[str, str] = {
         "filter": f"title.search:{title_query}",
         "sort": "cited_by_count:desc",
-        "per_page": 5,
+        "per_page": "5",
     }
     if OPENALEX_KEY:
         params["api_key"] = OPENALEX_KEY
 
+    query_str = urllib.parse.urlencode(params)
+    url = f"https://api.openalex.org/works?{query_str}"
+
     try:
-        r = requests.get("https://api.openalex.org/works", params=params, headers=headers, timeout=15)
-        if r.status_code == 200:
-            data = r.json()
-            for item in data.get("results", []):
-                doi = normalize_doi(item.get("doi"))
-                if doi:
-                    return {
-                        "doi": doi,
-                        "title": item.get("title", ""),
-                        "year": str(item.get("publication_year", "")),
-                        "citations": item.get("cited_by_count", 0),
-                        "journal": (item.get("primary_location") or {}).get("source", {}).get("display_name", "") if isinstance(item.get("primary_location"), dict) else "",
-                    }
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            if resp.status == 200:
+                data = json.loads(resp.read().decode("utf-8"))
+                for item in data.get("results", []):
+                    doi = normalize_doi(item.get("doi"))
+                    if doi:
+                        loc = item.get("primary_location")
+                        journal = ""
+                        if isinstance(loc, dict):
+                            src = loc.get("source")
+                            if isinstance(src, dict):
+                                journal = src.get("display_name") or ""
+                        return {
+                            "doi": doi,
+                            "title": item.get("title", ""),
+                            "year": str(item.get("publication_year", "")),
+                            "citations": item.get("cited_by_count", 0),
+                            "journal": journal,
+                        }
     except Exception as exc:
         print(f"Error searching OpenAlex: {exc}", file=sys.stderr)
     return None
@@ -253,7 +262,7 @@ def parse_results(run_dir: Path) -> dict[str, object]:
     )[:5]
 
     # Recent high-impact: year within last 3 years, sorted by AdjustedScore
-    current_year = 2026
+    current_year = datetime.now().year
     recent_nodes = [n for n in other_nodes if n.get("Year") and n["Year"].isdigit() and int(n["Year"]) >= current_year - 3]
     recent = sorted(
         recent_nodes,
