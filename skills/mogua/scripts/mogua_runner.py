@@ -21,6 +21,9 @@ if hasattr(sys.stdout, "reconfigure"):
         pass
 
 
+import shutil
+
+
 def find_workspace() -> Path:
     """Dynamically locate the Mogua workspace / pipeline root."""
     if os.environ.get("MOGUA_WORKSPACE"):
@@ -28,31 +31,21 @@ def find_workspace() -> Path:
         if (p / "run_pipeline.py").exists():
             return p
 
-    # Current working directory
-    cwd = Path.cwd().resolve()
-    if (cwd / "run_pipeline.py").exists():
-        return cwd
-
-    for parent in cwd.parents:
-        if (parent / "run_pipeline.py").exists():
-            return parent
-
     # Relative to this script (e.g. repo/skills/mogua/scripts/...)
     script_dir = Path(__file__).resolve().parent
     for parent in [script_dir, *script_dir.parents]:
         if (parent / "run_pipeline.py").exists():
             return parent
 
-    # Check if pipeline_modules or run_pipeline is importable (when installed via pip/uv)
-    try:
-        import pipeline_modules
-        if hasattr(pipeline_modules, "__file__") and pipeline_modules.__file__:
-            mod_p = Path(pipeline_modules.__file__).resolve().parent
-            if (mod_p / "run_pipeline.py").exists():
-                return mod_p
-    except Exception:
-        pass
+    # Current working directory
+    cwd = Path.cwd().resolve()
+    if (cwd / "run_pipeline.py").exists():
+        return cwd
+    for parent in cwd.parents:
+        if (parent / "run_pipeline.py").exists():
+            return parent
 
+    # Check if pipeline_modules or run_pipeline is importable
     try:
         import run_pipeline
         if hasattr(run_pipeline, "__file__") and run_pipeline.__file__:
@@ -65,23 +58,19 @@ def find_workspace() -> Path:
     return cwd
 
 
-WORKSPACE = find_workspace()
-RUN_PIPELINE = WORKSPACE / "run_pipeline.py"
-
-
-def find_python() -> str:
+def find_python(workspace: Path) -> str:
     """Find the best python executable to run the pipeline."""
-    # 1. If currently executing under a python that has pipeline_modules, use sys.executable
+    # 1. Check WORKSPACE / .venv
+    venv_py = workspace / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    if venv_py.exists():
+        return str(venv_py)
+
+    # 2. Check if currently executing under a python that has pipeline_modules
     try:
         import pipeline_modules  # noqa: F401
         return sys.executable
     except ImportError:
         pass
-
-    # 2. Check WORKSPACE / .venv
-    venv_py = WORKSPACE / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
-    if venv_py.exists():
-        return str(venv_py)
 
     # 3. Check CWD / .venv
     cwd_venv_py = Path.cwd() / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
@@ -89,7 +78,6 @@ def find_python() -> str:
         return str(cwd_venv_py)
 
     # 4. Check if mogua command is in PATH
-    import shutil
     mogua_cmd = shutil.which("mogua")
     if mogua_cmd:
         bin_dir = Path(mogua_cmd).parent
@@ -100,7 +88,9 @@ def find_python() -> str:
     return sys.executable
 
 
-PYTHON_EXE = find_python()
+WORKSPACE = find_workspace()
+RUN_PIPELINE = WORKSPACE / "run_pipeline.py"
+PYTHON_EXE = find_python(WORKSPACE)
 
 sys.path.insert(0, str(WORKSPACE))
 try:
@@ -124,7 +114,7 @@ def resolve_doi_from_title(title_query: str) -> dict[str, str] | None:
     """Use OpenAlex to search title and obtain DOI."""
     import requests
 
-    headers = {"User-Agent": "mogua-skill/1.0 (academic-citation-crawler)"}
+    headers = {"User-Agent": "mogua/1.0 (academic-citation-crawler; mailto:mogua@example.com)"}
     params: dict[str, str | int] = {
         "filter": f"title.search:{title_query}",
         "sort": "cited_by_count:desc",
@@ -162,38 +152,62 @@ def run_pipeline(
     smart_expand: int = 0,
 ) -> Path:
     slug = re.sub(r"[^a-z0-9]+", "_", doi.lower()).strip("_")[-48:]
-    target_out = output_dir or (WORKSPACE / "runs" / f"{slug}_d{depth}")
+    workspace = find_workspace()
+    target_out = output_dir or (Path.cwd() / "runs" / f"{slug}_d{depth}")
     target_out.mkdir(parents=True, exist_ok=True)
 
-    if RUN_PIPELINE.exists():
-        cmd = [
-            PYTHON_EXE,
-            str(RUN_PIPELINE),
-            "--doi", doi,
-            "--output-dir", str(target_out),
-            "--depth", str(depth),
-            "--max-neighbors", str(max_neighbors),
-            "--top-n", str(top_n),
-            "--top-m", str(top_m),
-        ]
-    else:
-        cmd = [
-            PYTHON_EXE,
-            "-m", "run_pipeline",
-            "--doi", doi,
-            "--output-dir", str(target_out),
-            "--depth", str(depth),
-            "--max-neighbors", str(max_neighbors),
-            "--top-n", str(top_n),
-            "--top-m", str(top_m),
-        ]
+    common_args = [
+        "--doi", doi,
+        "--output-dir", str(target_out),
+        "--depth", str(depth),
+        "--max-neighbors", str(max_neighbors),
+        "--top-n", str(top_n),
+        "--top-m", str(top_m),
+    ]
     if smart_expand > 0:
-        cmd.extend(["--smart-expand", str(smart_expand)])
+        common_args.extend(["--smart-expand", str(smart_expand)])
+
+    python_exe = find_python(workspace)
+    run_script = workspace / "run_pipeline.py"
+
+    cmd: list[str] = []
+    run_cwd = str(workspace if run_script.exists() else Path.cwd())
+
+    # Strategy 1: Global mogua executable (e.g. installed via uv tool / pipx / pip)
+    mogua_cmd = shutil.which("mogua")
+    if mogua_cmd:
+        cmd = [mogua_cmd, *common_args]
+    # Strategy 2: Directly execute run_pipeline.py if found
+    elif run_script.exists():
+        cmd = [python_exe, str(run_script), *common_args]
+    # Strategy 3: Try python -m run_pipeline
+    else:
+        try:
+            check = subprocess.run([python_exe, "-c", "import run_pipeline"], capture_output=True)
+            if check.returncode == 0:
+                cmd = [python_exe, "-m", "run_pipeline", *common_args]
+        except Exception:
+            pass
+
+    # Strategy 4: If uv is installed, auto-run on-the-fly
+    if not cmd:
+        uv_cmd = shutil.which("uv")
+        if uv_cmd:
+            cmd = [uv_cmd, "run", "--with", "git+https://github.com/Jacksonzhang320/mogua.git", "mogua", *common_args]
+
+    if not cmd:
+        raise RuntimeError(
+            "\n[Mogua Error] 未找到 Mogua 运行环境！\n"
+            "请在终端执行以下任意命令完成一键环境安装：\n"
+            "  1) uv tool install git+https://github.com/Jacksonzhang320/mogua.git\n"
+            "  2) pip install git+https://github.com/Jacksonzhang320/mogua.git\n"
+            "或设置 MOGUA_WORKSPACE 环境变量指向克隆的代码目录。\n"
+        )
 
     env = dict(os.environ)
     env["PYTHONIOENCODING"] = "utf-8"
 
-    result = subprocess.run(cmd, cwd=str(WORKSPACE), capture_output=True, text=True, encoding="utf-8", env=env)
+    result = subprocess.run(cmd, cwd=run_cwd, capture_output=True, text=True, encoding="utf-8", env=env)
     if result.returncode != 0:
         raise RuntimeError(f"Pipeline run failed (code {result.returncode}):\n{result.stderr}\n{result.stdout}")
 

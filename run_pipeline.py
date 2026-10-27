@@ -114,23 +114,40 @@ def main() -> Path:
     Step3_FilterAndBuild(out, [doi], top_n=args.top_n, top_m=args.top_m, force=rebuild).run(force=rebuild)
 
     if not args.skip_plot:
-        plot_script = Path(__file__).resolve().parent / "plotting" / "plot_enhanced.py"
-        subprocess.run(
-            [
-                sys.executable,
-                "-X",
-                "utf8",
-                "-B",
-                str(plot_script),
-                "--nodes",
-                str(out / "analysis_results" / "nodes_core.csv"),
-                "--edges",
-                str(out / "analysis_results" / "edges_core.csv"),
-                "--output",
-                str(out / "analysis_results" / "core_network_enhanced"),
-            ],
-            check=True,
-        )
+        nodes_csv = out / "analysis_results" / "nodes_core.csv"
+        edges_csv = out / "analysis_results" / "edges_core.csv"
+        out_stem = out / "analysis_results" / "core_network_enhanced"
+        try:
+            from plotting.plot_enhanced import build_graph, read_rows, write_interactive, write_static
+            nodes = read_rows(nodes_csv)
+            edges = read_rows(edges_csv)
+            if nodes:
+                graph = build_graph(nodes, edges)
+                seed = next((r for r in nodes if r.get("IsSeed") == "1"), nodes[0])
+                title = seed.get("Title") or "Core Citation Network"
+                write_interactive(graph, out_stem.with_suffix(".html"), title)
+                write_static(graph, out_stem, title)
+                logging.info("Visual map generated: %s (nodes=%d, edges=%d)", out_stem, graph.number_of_nodes(), graph.number_of_edges())
+        except Exception as exc:
+            logging.warning("In-process visualization failed (%s), trying fallback...", exc)
+            plot_script = Path(__file__).resolve().parent / "plotting" / "plot_enhanced.py"
+            if plot_script.exists():
+                subprocess.run(
+                    [
+                        sys.executable,
+                        "-X",
+                        "utf8",
+                        "-B",
+                        str(plot_script),
+                        "--nodes",
+                        str(nodes_csv),
+                        "--edges",
+                        str(edges_csv),
+                        "--output",
+                        str(out_stem),
+                    ],
+                    check=False,
+                )
 
     logging.info("Pipeline complete: %s", out.resolve())
     html_path = out / "analysis_results" / "core_network_enhanced.html"

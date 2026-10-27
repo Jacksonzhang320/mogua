@@ -101,15 +101,13 @@ class Step2_NetworkCrawler:
         self.delay_sec = max(1.05, delay_sec)
         self.max_items = max_items
         self.openalex_key = (os.environ.get("OPENALEX_API_KEY") or _LOCAL_OA_KEY).strip()
-        self.provider = "openalex" if provider == "auto" and self.openalex_key else provider
-        if self.provider == "auto":
-            self.provider = "opencitations"
+        self.provider = "openalex" if provider == "auto" else provider
         if self.provider not in {"openalex", "opencitations"}:
             raise ValueError(f"Unsupported provider: {self.provider}")
         if self.provider == "openalex" and not self.openalex_key:
-            raise RuntimeError("OPENALEX_API_KEY is not configured")
+            LOG.info("Running OpenAlex in public/unauthenticated mode. For higher rate limits, set OPENALEX_API_KEY.")
         self.session = requests.Session()
-        self.session.headers.update({"User-Agent": "paper-connection/3.2 (citation-network)"})
+        self.session.headers.update({"User-Agent": "mogua/1.0 (academic-citation-crawler; mailto:mogua@example.com)"})
         self.raw_data_dir.mkdir(parents=True, exist_ok=True)
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
@@ -142,7 +140,8 @@ class Step2_NetworkCrawler:
 
     def _get_openalex(self, path: str, params: dict[str, object] | None = None) -> object | None:
         query = dict(params or {})
-        query["api_key"] = self.openalex_key
+        if self.openalex_key:
+            query["api_key"] = self.openalex_key
         url = f"{OA_API_URL}/{path.lstrip('/')}"
         waits = (2, 5, 12, 30)
         for attempt, wait_sec in enumerate(waits, start=1):

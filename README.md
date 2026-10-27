@@ -56,41 +56,37 @@
 
 ## 🚀 快速上手 (Quick Start)
 
-### 1. 安装环境
+### 1. 一键安装环境（二选一）
 
+#### 方式 A：全局独立安装（强烈推荐，隔离依赖且跨项目可用）
+推荐使用现代 `uv tool` 或 `pipx`，一行命令即可在独立隔离沙盒中安装全部依赖并自动注册 `mogua` 全局命令：
+```bash
+# 推荐使用 uv（极速，跨平台）：
+uv tool install git+https://github.com/Jacksonzhang320/mogua.git
+
+# 或使用 pipx：
+pipx install git+https://github.com/Jacksonzhang320/mogua.git
+```
+
+#### 方式 B：源码克隆安装
 ```bash
 # 1. 克隆真实代码仓库
 git clone https://github.com/Jacksonzhang320/mogua.git
-
-# 2. 关键：先进入克隆下来的项目根目录！
 cd mogua
 
-# 3. 推荐使用现代 uv 工具包（极速安装，末尾的 '.' 代表当前目录，请完整输入执行）：
+# 2. 安装依赖（支持普通安装与可编辑开发模式）
 uv venv
 uv pip install -e .
-
-# 或者使用 Python 原生虚拟环境与 pip：
-# python -m venv .venv
-# Windows 激活: .venv\Scripts\activate
-# Linux/macOS 激活: source .venv/bin/activate
-# pip install -e .
+# 或使用标准 pip: pip install -e .
 ```
 
-### 2. 配置 OpenAlex 免费 API Key
+### 2. 配置 OpenAlex API Key（可选，推荐配置以获得更高频控）
 
-OpenAlex API 是完全开放的，申请一个 API Key 可获得非常充裕的每秒请求速率（每秒 10~20 次，完全免费）：
-1. 访问 [https://openalex.org/](https://openalex.org/) 并注册账号；
-2. 在个人设置（Settings / Profile）中一键复制您的 API Key；
-3. **配置方式（二选一）：**
-   * **方式 A（推荐）**：复制配置模板：
-     ```bash
-     cp config_local.example.py config_local.py
-     ```
-     在 `config_local.py` 中填入：
-     ```python
-     OPENALEX_API_KEY = "your_key_here"
-     ```
-   * **方式 B**：设置环境变量：
+OpenAlex API 默认支持免 Key 直接访问（自动走公共 Polite 队列）。若需进行大规模爬取，建议免费申请 Key 获取每秒 10~20 次并发：
+1. 访问 [https://openalex.org/](https://openalex.org/) 注册账号并在个人设置中复制 API Key；
+2. **配置方式（二选一）：**
+   * **方式 A（配置文件）**：复制 `config_local.example.py` 为 `config_local.py`，填入 `OPENALEX_API_KEY = "your_key"`；
+   * **方式 B（环境变量）**：
      ```bash
      export OPENALEX_API_KEY="your_key_here"      # Linux/macOS
      $env:OPENALEX_API_KEY="your_key_here"        # Windows PowerShell

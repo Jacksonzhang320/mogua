@@ -39,6 +39,7 @@ dependencies = [
 
 [tool.setuptools]
 py-modules = ["run_pipeline", "pipeline_modules", "enrich_abstracts"]
+packages = ["plotting"]
 
 [project.scripts]
 mogua = "run_pipeline:main"
