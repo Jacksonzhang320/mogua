@@ -24,7 +24,6 @@ keywords = [
 classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Science/Research",
-  "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3",
   "Topic :: Scientific/Engineering :: Information Analysis",
 ]
@@ -37,6 +36,9 @@ dependencies = [
   "requests>=2.31",
   "scipy>=1.10",
 ]
+
+[tool.setuptools]
+py-modules = ["run_pipeline", "pipeline_modules", "enrich_abstracts"]
 
 [project.scripts]
 mogua = "run_pipeline:main"

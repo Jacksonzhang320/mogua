@@ -59,15 +59,21 @@
 ### 1. 安装环境
 
 ```bash
-git clone https://github.com/your-username/mogua.git
+# 1. 克隆真实代码仓库
+git clone https://github.com/Jacksonzhang320/mogua.git
+
+# 2. 关键：先进入克隆下来的项目根目录！
 cd mogua
 
-# 使用 Python 原生 pip 安装
-pip install -e .
-
-# 或使用现代 uv 工具包（推荐，极速）
+# 3. 推荐使用现代 uv 工具包（极速安装，末尾的 '.' 代表当前目录，请完整输入执行）：
 uv venv
 uv pip install -e .
+
+# 或者使用 Python 原生虚拟环境与 pip：
+# python -m venv .venv
+# Windows 激活: .venv\Scripts\activate
+# Linux/macOS 激活: source .venv/bin/activate
+# pip install -e .
 ```
 
 ### 2. 配置 OpenAlex 免费 API Key
@@ -121,14 +127,18 @@ mogua --doi "10.1038/nature14539" --depth 1 --max-neighbors 100 --top-n 15 --top
 
 ## 🤖 AI Agent 技能集成 (Agent Skill)
 
-Mogua 仓库自带标准的 Agent Skill 定义，位于 `skills/mogua/`。
+Mogua 仓库自带开箱即用的 Agent Skill 定义，位于 `skills/mogua/`。
 
 ### 安装到您的 Agent
+
+克隆项目并执行过环境安装（`uv pip install -e .` 或 `pip install -e .`）后，即可挂载到各大智能体：
 
 * **Antigravity / Codex 用户**：
   将 `skills/mogua` 文件夹复制或软链接至 `~/.agents/skills/mogua`；
 * **Claude Code 用户**：
-  将 `skills/mogua` 复制到项目的 `.claude/skills/` 或全局 skills 目录。
+  将 `skills/mogua` 复制到当前项目的 `.claude/skills/mogua` 或全局 skills 目录。
+
+> 💡 **零路径配置**：Skill 内部执行脚本具备自适应工作区与 Python 探测能力，只要在已安装 `mogua` 依赖的环境下运行，无需手动修改任何硬编码绝对路径。
 
 ### 在 Agent 对话中一键唤醒
 安装完成后，在日常对话中只需简单输入自然语言：

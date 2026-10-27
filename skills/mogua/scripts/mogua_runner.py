@@ -33,16 +33,34 @@ def find_workspace() -> Path:
     if (cwd / "run_pipeline.py").exists():
         return cwd
 
-    # Relative to this script (e.g. repo/skills/mogua/scripts/...)
-    script_dir = Path(__file__).resolve().parent
-    for parent in [script_dir.parent.parent.parent, script_dir.parent.parent, script_dir.parent]:
+    for parent in cwd.parents:
         if (parent / "run_pipeline.py").exists():
             return parent
 
-    # Known fallback
-    fallback = Path(r"D:\Personal\claudecode_docker\paper_connection")
-    if fallback.exists():
-        return fallback
+    # Relative to this script (e.g. repo/skills/mogua/scripts/...)
+    script_dir = Path(__file__).resolve().parent
+    for parent in [script_dir, *script_dir.parents]:
+        if (parent / "run_pipeline.py").exists():
+            return parent
+
+    # Check if pipeline_modules or run_pipeline is importable (when installed via pip/uv)
+    try:
+        import pipeline_modules
+        if hasattr(pipeline_modules, "__file__") and pipeline_modules.__file__:
+            mod_p = Path(pipeline_modules.__file__).resolve().parent
+            if (mod_p / "run_pipeline.py").exists():
+                return mod_p
+    except Exception:
+        pass
+
+    try:
+        import run_pipeline
+        if hasattr(run_pipeline, "__file__") and run_pipeline.__file__:
+            mod_p = Path(run_pipeline.__file__).resolve().parent
+            if (mod_p / "run_pipeline.py").exists():
+                return mod_p
+    except Exception:
+        pass
 
     return cwd
 
@@ -53,9 +71,32 @@ RUN_PIPELINE = WORKSPACE / "run_pipeline.py"
 
 def find_python() -> str:
     """Find the best python executable to run the pipeline."""
+    # 1. If currently executing under a python that has pipeline_modules, use sys.executable
+    try:
+        import pipeline_modules  # noqa: F401
+        return sys.executable
+    except ImportError:
+        pass
+
+    # 2. Check WORKSPACE / .venv
     venv_py = WORKSPACE / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
     if venv_py.exists():
         return str(venv_py)
+
+    # 3. Check CWD / .venv
+    cwd_venv_py = Path.cwd() / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    if cwd_venv_py.exists():
+        return str(cwd_venv_py)
+
+    # 4. Check if mogua command is in PATH
+    import shutil
+    mogua_cmd = shutil.which("mogua")
+    if mogua_cmd:
+        bin_dir = Path(mogua_cmd).parent
+        candidate = bin_dir / ("python.exe" if os.name == "nt" else "python")
+        if candidate.exists():
+            return str(candidate)
+
     return sys.executable
 
 
@@ -124,16 +165,28 @@ def run_pipeline(
     target_out = output_dir or (WORKSPACE / "runs" / f"{slug}_d{depth}")
     target_out.mkdir(parents=True, exist_ok=True)
 
-    cmd = [
-        PYTHON_EXE,
-        str(RUN_PIPELINE),
-        "--doi", doi,
-        "--output-dir", str(target_out),
-        "--depth", str(depth),
-        "--max-neighbors", str(max_neighbors),
-        "--top-n", str(top_n),
-        "--top-m", str(top_m),
-    ]
+    if RUN_PIPELINE.exists():
+        cmd = [
+            PYTHON_EXE,
+            str(RUN_PIPELINE),
+            "--doi", doi,
+            "--output-dir", str(target_out),
+            "--depth", str(depth),
+            "--max-neighbors", str(max_neighbors),
+            "--top-n", str(top_n),
+            "--top-m", str(top_m),
+        ]
+    else:
+        cmd = [
+            PYTHON_EXE,
+            "-m", "run_pipeline",
+            "--doi", doi,
+            "--output-dir", str(target_out),
+            "--depth", str(depth),
+            "--max-neighbors", str(max_neighbors),
+            "--top-n", str(top_n),
+            "--top-m", str(top_m),
+        ]
     if smart_expand > 0:
         cmd.extend(["--smart-expand", str(smart_expand)])
 

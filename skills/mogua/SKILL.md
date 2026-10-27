@@ -32,22 +32,23 @@ Mogua 采用双轨筛选算法，从数百篇甚至数千篇引文/参考文献�
 
 ## 执行指南 (Agent 指令)
 
-执行脚本位于当前技能的 `scripts/` 目录下，依托本地专属 Python 环境：
+执行脚本位于当前技能的 `scripts/` 目录下（`scripts/mogua_runner.py`）。
 
-* **Python 解释器**：`D:\Personal\claudecode_docker\paper_connection\.venv\Scripts\python.exe`
-* **执行脚本**：`C:\Users\20738\.agents\skills\mogua\scripts\mogua_runner.py`
+### 1. 运行命令指南
 
-### 1. 运行命令示例
+* **Python 环境**：优先使用项目环境或已安装 `mogua` 依赖的虚拟环境中的 Python（如 `.venv/Scripts/python.exe` 或 `.venv/bin/python`；若已全局安装则直接使用 `python`）。
+* **字符编码**：Windows 终端环境下推荐附带 `-X utf8` 选项避免终端中文乱码。
+* **脚本路径**：Agent 执行时，将 `<skill_dir>` 自动替换为当前技能所在目录的绝对路径。
 
 ```powershell
 # 1. 直接提供 DOI 运行 (默认 depth=1, max-neighbors=100)
-D:\Personal\claudecode_docker\paper_connection\.venv\Scripts\python.exe -X utf8 C:\Users\20738\.agents\skills\mogua\scripts\mogua_runner.py "10.1016/j.cell.2024.08.046"
+python -X utf8 "<skill_dir>/scripts/mogua_runner.py" "10.1016/j.cell.2024.08.046"
 
 # 2. 提供论文标题 (自动通过 OpenAlex 反查最高引相关论文 DOI 并执行)
-D:\Personal\claudecode_docker\paper_connection\.venv\Scripts\python.exe -X utf8 C:\Users\20738\.agents\skills\mogua\scripts\mogua_runner.py "Attention Is All You Need"
+python -X utf8 "<skill_dir>/scripts/mogua_runner.py" "Attention Is All You Need"
 
 # 3. 获取结构化 JSON 格式数据供 Agent 深度分析
-D:\Personal\claudecode_docker\paper_connection\.venv\Scripts\python.exe -X utf8 C:\Users\20738\.agents\skills\mogua\scripts\mogua_runner.py "10.1016/j.cell.2024.08.046" --json
+python -X utf8 "<skill_dir>/scripts/mogua_runner.py" "10.1016/j.cell.2024.08.046" --json
 ```
 
 ### 2. 常用参数控制
@@ -76,9 +77,9 @@ D:\Personal\claudecode_docker\paper_connection\.venv\Scripts\python.exe -X utf8 
 4. **🚀 近年重要进展（Recent Highlights）**：
    * 列出近 3 年内的高权重成果。
 5. **📊 图谱文件交互链接**：
-   * 必须提供可直接点击的文件链接（file 协议格式）：
-     * 🌐 **交互式网页图谱**：`[打开交互式网络图谱](file:///D:/Personal/claudecode_docker/paper_connection/runs/.../core_network_enhanced.html)`（用户双击可在浏览器中拖拽节点、缩放与探索）
-     * 🖼️ **静态全景图**：`[查看高清网络图 PNG](file:///D:/Personal/claudecode_docker/paper_connection/runs/.../core_network_enhanced.png)`
-     * 📄 **数据清单**：`[核心节点明细 CSV](file:///D:/Personal/claudecode_docker/paper_connection/runs/.../nodes_core.csv)`
+   * 必须提供可直接点击的文件链接（file 协议格式，直接从脚本输出中的实际绝对路径提取）：
+     * 🌐 **交互式网页图谱**：`[打开交互式网络图谱](file:///<path_to_html>)`（用户双击可在浏览器中拖拽节点、缩放与探索）
+     * 🖼️ **静态全景图**：`[查看高清网络图 PNG](file:///<path_to_png>)`
+     * 📄 **数据清单**：`[核心节点明细 CSV](file:///<path_to_csv>)`
 6. **主动追问后续动作**：
    * 提示用户：“是否需要挑选其中感兴趣的文献，通过 `scansci-pdf` 自动下载全文 PDF？”
